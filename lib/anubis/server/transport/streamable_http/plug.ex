@@ -248,6 +248,9 @@ if Code.ensure_loaded?(Plug) do
              call_timeout: call_timeout
            ) do
         {:sse, response} ->
+          request_id = extract_request_id(body)
+          Logging.message("outgoing", "sse_response", request_id, response)
+
           route_sse_response(
             conn,
             transport,

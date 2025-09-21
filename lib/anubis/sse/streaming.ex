@@ -62,6 +62,9 @@ if Code.ensure_loaded?(Plug) do
     @spec send_event(conn, binary(), non_neg_integer()) ::
             {:ok, conn} | {:error, term()}
     def send_event(conn, data, event_id) when is_binary(data) do
+      # Log the SSE event being sent
+      Logging.message("outgoing", "sse_event", nil, data, event_id: event_id)
+
       event = %Event{
         id: to_string(event_id),
         event: "message",
