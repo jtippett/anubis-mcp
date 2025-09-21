@@ -189,13 +189,13 @@ defmodule Anubis.Logging do
   end
 
   @doc false
-  def should_log_details?(data) when is_binary(data), do: byte_size(data) < 500
-  def should_log_details?(data) when is_map(data), do: map_size(data) < 10
+  def should_log_details?(data) when is_binary(data), do: byte_size(data) < 10_000
+  def should_log_details?(data) when is_map(data), do: map_size(data) < 100
   def should_log_details?(nil), do: false
   def should_log_details?(_), do: true
 
   @doc false
-  def truncate_data(data) when is_binary(data), do: "#{String.slice(data, 0, 100)}..."
+  def truncate_data(data) when is_binary(data), do: "#{String.slice(data, 0, 500)}..."
 
   def truncate_data(data) when is_map(data) do
     important_keys =
