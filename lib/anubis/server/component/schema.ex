@@ -66,7 +66,12 @@ defmodule Anubis.Server.Component.Schema do
     convert_type({:mcp_field, {:required, type}, opts})
   end
 
+  defp convert_type({:optional, {:mcp_field, type, opts}}) do
+    convert_type({:mcp_field, {:optional, type}, opts})
+  end
+
   defp convert_type({:required, type}), do: convert_type(type)
+  defp convert_type({:optional, type}), do: convert_type(type)
 
   defp convert_type({:mcp_field, type, opts}) when is_list(opts) do
     type

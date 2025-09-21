@@ -182,6 +182,27 @@ defmodule Anubis.Server.Transport.StreamableHTTP.PlugTest do
       assert response["result"] == %{}
     end
 
+    test "POST request logs outgoing responses", %{opts: opts} do
+      request = build_request("ping", %{})
+      {:ok, body} = Message.encode_request(request, 1)
+
+      log =
+        capture_log(fn ->
+          conn =
+            :post
+            |> conn("/", body)
+            |> put_req_header("content-type", "application/json")
+            |> put_req_header("accept", "application/json, text/event-stream")
+            |> StreamableHTTPPlug.call(opts)
+
+          assert conn.status == 200
+        end)
+
+      # Verify the outgoing response was logged
+      assert log =~ "[MCP message] outgoing response"
+      assert log =~ "id=1" || log =~ "\\\"id\\\":1"
+    end
+
     test "POST request with invalid JSON returns error", %{opts: opts} do
       conn =
         :post
