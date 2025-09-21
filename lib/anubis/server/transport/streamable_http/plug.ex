@@ -213,33 +213,7 @@ if Code.ensure_loaded?(Plug) do
       end
     end
 
-    # Handle requests that might need SSE streaming
-
     defp handle_request_with_possible_sse(conn, transport, session_id, body, context, session_header, call_timeout) do
-      if wants_sse?(conn) do
-        handle_sse_request(
-          conn,
-          transport,
-          session_id,
-          body,
-          context,
-          session_header,
-          call_timeout
-        )
-      else
-        handle_json_request(
-          conn,
-          transport,
-          session_id,
-          body,
-          context,
-          session_header,
-          call_timeout
-        )
-      end
-    end
-
-    defp handle_sse_request(conn, transport, session_id, body, context, session_header, call_timeout) do
       case StreamableHTTP.handle_message_for_sse(
              transport,
              session_id,
@@ -266,26 +240,7 @@ if Code.ensure_loaded?(Plug) do
           request_id = extract_request_id(body)
           Logging.message("outgoing", "response", request_id, response)
 
-          conn
-          |> put_resp_content_type("application/json")
-          |> maybe_add_session_header(session_header, session_id)
-          |> send_resp(200, response)
-
-        {:error, error} ->
-          handle_request_error(conn, error, body)
-      end
-    end
-
-    defp handle_json_request(conn, transport, session_id, body, context, session_header, call_timeout) do
-      case StreamableHTTP.handle_message(transport, session_id, body, context, call_timeout: call_timeout) do
-        {:ok, response} ->
-          request_id = extract_request_id(body)
-          Logging.message("outgoing", "response", request_id, response)
-
-          conn
-          |> put_resp_content_type("application/json")
-          |> maybe_add_session_header(session_header, session_id)
-          |> send_resp(200, response)
+          reply_json(conn, response, session_header, session_id)
 
         {:error, error} ->
           handle_request_error(conn, error, body)
@@ -442,6 +397,14 @@ if Code.ensure_loaded?(Plug) do
       else
         conn
       end
+    end
+
+    defp reply_json(conn, response, session_header, session_id) when is_binary(response) do
+      conn
+      |> put_resp_content_type("application/json")
+      |> maybe_add_session_header(session_header, session_id)
+      |> send_resp(200, response)
+      |> halt()
     end
 
     defp maybe_read_request_body(%{body_params: %Unfetched{aspect: :body_params}} = conn, %{timeout: timeout}) do

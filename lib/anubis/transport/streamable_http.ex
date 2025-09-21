@@ -144,7 +144,8 @@ defmodule Anubis.Transport.StreamableHTTP do
       size: byte_size(message)
     })
 
-    new_state = %{state | active_request: from}
+    request_type = classify_message(message)
+    new_state = %{state | active_request: %{from: from, type: request_type}}
 
     case send_http_request(new_state, message) do
       {:ok, response} ->
@@ -160,7 +161,7 @@ defmodule Anubis.Transport.StreamableHTTP do
         Logging.transport_event("http_request_error", %{reason: inspect(reason)}, level: :error)
 
         log_error(reason)
-        {:reply, {:error, reason}, state}
+        {:reply, {:error, reason}, %{state | active_request: nil}}
     end
   end
 
@@ -186,7 +187,10 @@ defmodule Anubis.Transport.StreamableHTTP do
 
   @impl GenServer
   def handle_info(:sse_response_complete, state) do
-    if state.active_request, do: GenServer.reply(state.active_request, :ok)
+    if state.active_request do
+      GenServer.reply(state.active_request.from, :ok)
+    end
+
     {:noreply, %{state | active_request: nil}}
   end
 
@@ -260,27 +264,48 @@ defmodule Anubis.Transport.StreamableHTTP do
 
   defp handle_response(%{headers: headers, body: body, status: status}, state) do
     new_state = update_session_id(state, headers)
+    request_type = active_request_type(new_state)
+    content_type = get_content_type(headers)
 
     Logging.transport_event("http_response", %{
       status: status,
-      content_type: get_content_type(headers),
+      content_type: content_type,
       body_size: byte_size(body),
       has_session: not is_nil(new_state.session_id)
     })
 
-    case {status, get_content_type(headers)} do
-      {202, _} ->
+    case {status, content_type, request_type} do
+      {202, _, :request} ->
+        Logging.transport_event(
+          "unexpected_202_for_request",
+          %{status: status},
+          level: :error
+        )
+
+        {:reply, {:error, :unexpected_202}, %{new_state | active_request: nil}}
+
+      {202, _, _} ->
         {:reply, :ok, %{new_state | active_request: nil}}
 
-      {_, "application/json"} ->
+      {_, "application/json", _} ->
         forward_to_client(body, new_state)
         {:reply, :ok, %{new_state | active_request: nil}}
 
-      {_, "text/event-stream"} ->
+      {_, "text/event-stream", :request} ->
         stream_sse_response(body, new_state)
         {:noreply, new_state}
 
-      {_, content_type} ->
+      {_, "text/event-stream", _} ->
+        Logging.transport_event(
+          "unexpected_sse_for_message",
+          %{request_type: request_type},
+          level: :warning
+        )
+
+        stream_sse_response(body, new_state)
+        {:noreply, new_state}
+
+      {_, _unsupported, _} ->
         {:reply, {:error, {:unsupported_content_type, content_type}}, %{new_state | active_request: nil}}
     end
   end
@@ -307,7 +332,7 @@ defmodule Anubis.Transport.StreamableHTTP do
       Logging.transport_event("sse_parse_error", %{error: e}, level: :warning)
 
       if state.active_request do
-        GenServer.reply(state.active_request, {:error, :sse_parse_error})
+        GenServer.reply(state.active_request.from, {:error, :sse_parse_error})
       end
   end
 
@@ -385,6 +410,32 @@ defmodule Anubis.Transport.StreamableHTTP do
   end
 
   # Additional helper functions for SSE support
+
+  defp classify_message(message) do
+    case Jason.decode(message) do
+      {:ok, payload} ->
+        cond do
+          is_map(payload) and Map.has_key?(payload, "method") and Map.has_key?(payload, "id") ->
+            :request
+
+          is_map(payload) and Map.has_key?(payload, "method") ->
+            :notification
+
+          is_map(payload) and Map.has_key?(payload, "id") and
+              (Map.has_key?(payload, "result") or Map.has_key?(payload, "error")) ->
+            :response
+
+          true ->
+            :unknown
+        end
+
+      _ ->
+        :unknown
+    end
+  end
+
+  defp active_request_type(%{active_request: %{type: type}}), do: type
+  defp active_request_type(_), do: :unknown
 
   defp maybe_start_sse_connection(%{enable_sse: false} = state), do: state
 

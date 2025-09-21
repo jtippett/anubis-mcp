@@ -129,6 +129,34 @@ defmodule Anubis.Transport.StreamableHTTPTest do
       StubClient.clear_messages()
     end
 
+    test "returns error when request receives 202 Accepted", %{bypass: bypass} do
+      server_url = "http://localhost:#{bypass.port}"
+      {:ok, stub_client} = StubClient.start_link()
+
+      Bypass.expect(bypass, "POST", "/mcp", fn conn ->
+        {:ok, _body, conn} = Plug.Conn.read_body(conn)
+        Plug.Conn.resp(conn, 202, "")
+      end)
+
+      {:ok, transport} =
+        StreamableHTTP.start_link(
+          client: stub_client,
+          base_url: server_url,
+          mcp_path: "/mcp",
+          transport_opts: @test_http_opts
+        )
+
+      Process.sleep(100)
+
+      {:ok, tools_list} =
+        Message.encode_request(%{"method" => "tools/list", "params" => %{}}, "1")
+
+      assert {:error, :unexpected_202} = StreamableHTTP.send_message(transport, tools_list)
+
+      StreamableHTTP.shutdown(transport)
+      StubClient.clear_messages()
+    end
+
     test "handles SSE response", %{bypass: bypass} do
       server_url = "http://localhost:#{bypass.port}"
       {:ok, stub_client} = StubClient.start_link()

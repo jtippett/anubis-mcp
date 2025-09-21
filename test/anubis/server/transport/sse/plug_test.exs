@@ -15,24 +15,24 @@ defmodule Anubis.Server.Transport.SSE.PlugTest do
   describe "init/1" do
     test "requires server option" do
       assert_raise KeyError, fn ->
-        SSEPlug.init(mode: :sse)
+        init_plug(mode: :sse)
       end
     end
 
     test "requires mode option" do
       assert_raise KeyError, fn ->
-        SSEPlug.init(server: StubServer)
+        init_plug(server: StubServer)
       end
     end
 
     test "mode must be :sse or :post" do
       assert_raise ArgumentError, ~r/mode to be either :sse or :post/, fn ->
-        SSEPlug.init(server: StubServer, mode: :invalid)
+        init_plug(server: StubServer, mode: :invalid)
       end
     end
 
     test "initializes with valid options", %{registry: registry} do
-      opts = SSEPlug.init(server: StubServer, mode: :sse, timeout: 5000)
+      opts = init_plug(server: StubServer, mode: :sse, timeout: 5000)
 
       assert %{
                transport: transport,
@@ -48,7 +48,7 @@ defmodule Anubis.Server.Transport.SSE.PlugTest do
       assert Process.whereis(MockCustomRegistry)
 
       opts =
-        SSEPlug.init(server: StubServer, mode: :sse, registry: MockCustomRegistry)
+        init_plug(server: StubServer, mode: :sse, registry: MockCustomRegistry)
 
       expected_transport = MockCustomRegistry.transport(StubServer, :sse)
 
@@ -63,7 +63,7 @@ defmodule Anubis.Server.Transport.SSE.PlugTest do
       {:ok, transport} =
         start_supervised({SSE, server: StubServer, name: name, registry: registry})
 
-      sse_opts = SSEPlug.init(server: StubServer, mode: :sse)
+      sse_opts = init_plug(server: StubServer, mode: :sse)
       %{sse_opts: sse_opts, transport: transport}
     end
 
@@ -140,7 +140,7 @@ defmodule Anubis.Server.Transport.SSE.PlugTest do
       {:ok, transport} =
         start_supervised({SSE, server: StubServer, name: name, registry: registry})
 
-      post_opts = SSEPlug.init(server: StubServer, mode: :post)
+      post_opts = init_plug(server: StubServer, mode: :post)
       %{post_opts: post_opts, transport: transport, registry: registry}
     end
 
@@ -222,7 +222,7 @@ defmodule Anubis.Server.Transport.SSE.PlugTest do
       {:ok, transport} =
         start_supervised({SSE, server: StubServer, name: name, registry: registry})
 
-      post_opts = SSEPlug.init(server: StubServer, mode: :post)
+      post_opts = init_plug(server: StubServer, mode: :post)
       %{post_opts: post_opts, transport: transport}
     end
 
@@ -277,5 +277,9 @@ defmodule Anubis.Server.Transport.SSE.PlugTest do
 
       assert conn.status == 202
     end
+  end
+
+  defp init_plug(opts) do
+    apply(SSEPlug, :init, [opts])
   end
 end

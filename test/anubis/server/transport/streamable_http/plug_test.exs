@@ -182,6 +182,61 @@ defmodule Anubis.Server.Transport.StreamableHTTP.PlugTest do
       assert response["result"] == %{}
     end
 
+    test "tools/list request returns 200 with tool data", %{opts: opts} do
+      init_request =
+        build_request("initialize", %{
+          "protocolVersion" => "2025-03-26",
+          "clientInfo" => %{"name" => "test", "version" => "1.0.0"}
+        })
+
+      {:ok, init_body} = Message.encode_request(init_request, 1)
+
+      init_conn =
+        :post
+        |> conn("/", init_body)
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("accept", "application/json, text/event-stream")
+        |> StreamableHTTPPlug.call(opts)
+
+      assert init_conn.status == 200
+
+      session_id = init_conn |> get_resp_header("mcp-session-id") |> List.first()
+      assert session_id
+
+      initialized_notification = build_notification("notifications/initialized", %{})
+      {:ok, initialized_body} = Message.encode_notification(initialized_notification)
+
+      notif_conn =
+        :post
+        |> conn("/", initialized_body)
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("accept", "application/json, text/event-stream")
+        |> put_req_header("mcp-session-id", session_id)
+        |> StreamableHTTPPlug.call(opts)
+
+      assert notif_conn.status == 202
+
+      request = build_request("tools/list", %{})
+      {:ok, body} = Message.encode_request(request, 2)
+
+      conn =
+        :post
+        |> conn("/", body)
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("accept", "application/json, text/event-stream")
+        |> put_req_header("mcp-session-id", session_id)
+        |> StreamableHTTPPlug.call(opts)
+
+      assert conn.status == 200
+
+      {:ok, response} = Jason.decode(conn.resp_body)
+      tools = get_in(response, ["result", "tools"])
+
+      assert is_list(tools)
+      assert Enum.any?(tools, &(&1["name"] == "greet"))
+      assert conn.halted
+    end
+
     test "POST request logs outgoing responses", %{opts: opts} do
       request = build_request("ping", %{})
       {:ok, body} = Message.encode_request(request, 1)
