@@ -260,6 +260,9 @@ if Code.ensure_loaded?(Plug) do
           )
 
         {:ok, response} ->
+          request_id = extract_request_id(body)
+          Logging.message("outgoing", "response", request_id, response)
+
           conn
           |> put_resp_content_type("application/json")
           |> maybe_add_session_header(session_header, session_id)
@@ -273,6 +276,9 @@ if Code.ensure_loaded?(Plug) do
     defp handle_json_request(conn, transport, session_id, body, context, session_header, call_timeout) do
       case StreamableHTTP.handle_message(transport, session_id, body, context, call_timeout: call_timeout) do
         {:ok, response} ->
+          request_id = extract_request_id(body)
+          Logging.message("outgoing", "response", request_id, response)
+
           conn
           |> put_resp_content_type("application/json")
           |> maybe_add_session_header(session_header, session_id)
