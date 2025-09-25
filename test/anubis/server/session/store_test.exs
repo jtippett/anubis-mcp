@@ -11,18 +11,19 @@ defmodule Anubis.Server.Session.StoreTest do
     MockSessionStore.reset!()
 
     # Configure the application to use the mock store
-    original_config = Application.get_env(:anubis, :session_store)
+    original_config = Application.get_env(:anubis_mcp, :session_store)
 
-    Application.put_env(:anubis, :session_store,
+    Application.put_env(:anubis_mcp, :session_store,
+      enabled: true,
       adapter: MockSessionStore,
       ttl: 1800
     )
 
     on_exit(fn ->
       if original_config do
-        Application.put_env(:anubis, :session_store, original_config)
+        Application.put_env(:anubis_mcp, :session_store, original_config)
       else
-        Application.delete_env(:anubis, :session_store)
+        Application.delete_env(:anubis_mcp, :session_store)
       end
     end)
 
@@ -238,7 +239,7 @@ defmodule Anubis.Server.Session.StoreTest do
   describe "session store configuration" do
     test "works without store configured" do
       # Remove store configuration
-      Application.delete_env(:anubis, :session_store)
+      Application.delete_env(:anubis_mcp, :session_store)
 
       session_id = "no_store_session"
       {:ok, _} = Registry.start_link(keys: :unique, name: TestSessionRegistry5)

@@ -109,26 +109,32 @@ defmodule Anubis.Server.Session.Supervisor do
   defp restore_sessions(server, registry) do
     case get_store() do
       nil ->
+        require Logger
+
+        Logger.debug("No session store configured, skipping session restoration")
         :ok
 
       store ->
+        require Logger
+
+        Logger.debug("Checking for sessions to restore from store for server #{inspect(server)}")
+
         case store.list_active(server: server) do
           {:ok, session_ids} ->
-            Enum.each(session_ids, fn session_id ->
-              create_session(registry, server, session_id)
-            end)
-
             if length(session_ids) > 0 do
-              require Logger
+              Logger.info("Restoring #{length(session_ids)} sessions for server #{inspect(server)}")
 
-              Logger.info("Restored #{length(session_ids)} sessions for server #{inspect(server)}")
+              Enum.each(session_ids, fn session_id ->
+                Logger.debug("Creating session process for restored session: #{session_id}")
+                create_session(registry, server, session_id)
+              end)
+            else
+              Logger.debug("No sessions found to restore for server #{inspect(server)}")
             end
 
             :ok
 
           {:error, reason} ->
-            require Logger
-
             Logger.warning("Failed to restore sessions: #{inspect(reason)}")
             :ok
         end
@@ -136,15 +142,23 @@ defmodule Anubis.Server.Session.Supervisor do
   end
 
   defp get_store do
-    case Application.get_env(:anubis, :session_store) do
+    case Application.get_env(:anubis_mcp, :session_store) do
       nil ->
         nil
 
       config ->
-        adapter = Keyword.get(config, :adapter)
+        # Check if session store is enabled
+        if Keyword.get(config, :enabled, false) do
+          adapter = Keyword.get(config, :adapter)
 
-        if adapter && Code.ensure_loaded?(adapter) do
-          adapter
+          if adapter && Code.ensure_loaded?(adapter) do
+            adapter
+          else
+            require Logger
+
+            Logger.warning("Session store enabled but adapter not available: #{inspect(adapter)}")
+            nil
+          end
         end
     end
   end

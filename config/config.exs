@@ -12,7 +12,8 @@ config :logger, :default_formatter,
 
 # Session store configuration - disabled by default
 # To enable Redis persistence, uncomment and configure:
-# config :anubis, :session_store,
+# config :anubis_mcp, :session_store,
+#   enabled: true,
 #   adapter: Anubis.Server.Session.Store.Redis,
 #   redis_url: System.get_env("REDIS_URL", "redis://localhost:6379/0"),
 #   pool_size: 10,

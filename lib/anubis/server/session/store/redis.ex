@@ -109,6 +109,13 @@ defmodule Anubis.Server.Session.Store.Redis do
           ttl: ttl
         }
 
+        Logger.info("Redis session store started successfully", %{
+          namespace: namespace,
+          pool_size: pool_size,
+          ttl: ttl,
+          redis_url: redis_url
+        })
+
         Logging.server_event("redis_store_started", %{
           namespace: namespace,
           pool_size: pool_size,

@@ -1,6 +1,7 @@
 defmodule Anubis.Server.ComponentFieldMacroTest do
   use ExUnit.Case, async: true
 
+  alias Anubis.Server.Component
   alias TestTools.DeeplyNestedTool
   alias TestTools.LegacyTool
   alias TestTools.NestedFieldTool

@@ -13,18 +13,19 @@ defmodule Anubis.Server.Transport.StreamableHTTP.PlugPersistenceTest do
     MockSessionStore.reset!()
 
     # Configure the application to use the mock store
-    original_config = Application.get_env(:anubis, :session_store)
+    original_config = Application.get_env(:anubis_mcp, :session_store)
 
-    Application.put_env(:anubis, :session_store,
+    Application.put_env(:anubis_mcp, :session_store,
+      enabled: true,
       adapter: MockSessionStore,
       ttl: 1800
     )
 
     on_exit(fn ->
       if original_config do
-        Application.put_env(:anubis, :session_store, original_config)
+        Application.put_env(:anubis_mcp, :session_store, original_config)
       else
-        Application.delete_env(:anubis, :session_store)
+        Application.delete_env(:anubis_mcp, :session_store)
       end
     end)
 
@@ -218,7 +219,7 @@ defmodule Anubis.Server.Transport.StreamableHTTP.PlugPersistenceTest do
   describe "backward compatibility" do
     test "sessions work exactly as before when no store is configured" do
       # Remove store configuration
-      Application.delete_env(:anubis, :session_store)
+      Application.delete_env(:anubis_mcp, :session_store)
 
       # Make a request - should work fine without persistence
       message = %{

@@ -169,17 +169,30 @@ defmodule Anubis.Server.Session do
   defp maybe_restore_session(session_id, name, server_module) do
     case get_store() do
       nil ->
+        Logger.debug("No session store configured, creating new session #{session_id}")
         {:error, :no_store}
 
       store ->
+        Logger.debug("Attempting to restore session #{session_id} from store")
+
         case store.load(session_id, server: server_module) do
           {:ok, state_map} ->
+            Logger.debug("Successfully loaded session #{session_id} from store", %{
+              initialized: Map.get(state_map, :initialized, false),
+              protocol_version: Map.get(state_map, :protocol_version)
+            })
+
             # Restore the session struct from the persisted map
             state = struct(__MODULE__, state_map)
             # Update the name field to match the current process
             {:ok, %{state | name: name}}
 
+          {:error, :not_found} = error ->
+            Logger.debug("Session #{session_id} not found in store, will create new session")
+            error
+
           error ->
+            Logger.debug("Failed to load session #{session_id} from store: #{inspect(error)}")
             error
         end
     end
@@ -188,9 +201,11 @@ defmodule Anubis.Server.Session do
   defp maybe_persist_session(%__MODULE__{} = state) do
     case get_store() do
       nil ->
+        Logger.debug("No store configured, skipping persistence for session #{state.id}")
         :ok
 
       store ->
+        Logger.debug("Persisting session #{state.id} to store")
         # Convert struct to map and remove runtime fields
         state_map =
           state
@@ -200,6 +215,7 @@ defmodule Anubis.Server.Session do
 
         case store.save(state.id, state_map, []) do
           :ok ->
+            Logger.debug("Successfully persisted session #{state.id}")
             :ok
 
           {:error, reason} ->
@@ -210,15 +226,25 @@ defmodule Anubis.Server.Session do
   end
 
   defp get_store do
-    case Application.get_env(:anubis, :session_store) do
+    case Application.get_env(:anubis_mcp, :session_store) do
       nil ->
         nil
 
       config ->
-        adapter = Keyword.get(config, :adapter)
+        # Check if session store is enabled
+        if Keyword.get(config, :enabled, false) do
+          adapter = Keyword.get(config, :adapter)
 
-        if adapter && Code.ensure_loaded?(adapter) do
-          adapter
+          if adapter && Code.ensure_loaded?(adapter) do
+            Logger.debug("Using session store adapter: #{inspect(adapter)}")
+            adapter
+          else
+            Logger.warning("Session store enabled but adapter not available: #{inspect(adapter)}")
+            nil
+          end
+        else
+          Logger.debug("Session store configured but not enabled")
+          nil
         end
     end
   end
