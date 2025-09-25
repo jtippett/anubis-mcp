@@ -12,7 +12,7 @@ defmodule Anubis.Application do
     children =
       [
         {Finch, name: Anubis.Finch, pools: %{default: [size: 15]}}
-      ]
+      ] ++ maybe_start_session_store()
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
@@ -24,6 +24,22 @@ defmodule Anubis.Application do
       {:ok, pid}
     else
       {:ok, pid}
+    end
+  end
+
+  defp maybe_start_session_store do
+    case Application.get_env(:anubis, :session_store) do
+      nil ->
+        []
+
+      config ->
+        adapter = Keyword.get(config, :adapter)
+
+        if adapter && Code.ensure_loaded?(adapter) do
+          [{adapter, config}]
+        else
+          []
+        end
     end
   end
 end

@@ -25,7 +25,16 @@ defmodule Anubis.Server.Session.Supervisor do
     server = Keyword.fetch!(opts, :server)
     registry = Keyword.get(opts, :registry, Anubis.Server.Registry)
     name = registry.supervisor(@kind, server)
-    DynamicSupervisor.start_link(__MODULE__, server, name: name)
+
+    case DynamicSupervisor.start_link(__MODULE__, {server, registry}, name: name) do
+      {:ok, _pid} = success ->
+        # Restore sessions from store if configured
+        restore_sessions(server, registry)
+        success
+
+      error ->
+        error
+    end
   end
 
   @doc """
@@ -56,7 +65,7 @@ defmodule Anubis.Server.Session.Supervisor do
 
     DynamicSupervisor.start_child(
       name,
-      {Session, session_id: session_id, name: session_name}
+      {Session, session_id: session_id, name: session_name, server_module: server}
     )
   end
 
@@ -91,7 +100,52 @@ defmodule Anubis.Server.Session.Supervisor do
   end
 
   @impl DynamicSupervisor
-  def init(_init_arg) do
+  def init({_server, _registry}) do
     DynamicSupervisor.init(strategy: :one_for_one)
+  end
+
+  # Private functions
+
+  defp restore_sessions(server, registry) do
+    case get_store() do
+      nil ->
+        :ok
+
+      store ->
+        case store.list_active(server: server) do
+          {:ok, session_ids} ->
+            Enum.each(session_ids, fn session_id ->
+              create_session(registry, server, session_id)
+            end)
+
+            if length(session_ids) > 0 do
+              require Logger
+
+              Logger.info("Restored #{length(session_ids)} sessions for server #{inspect(server)}")
+            end
+
+            :ok
+
+          {:error, reason} ->
+            require Logger
+
+            Logger.warning("Failed to restore sessions: #{inspect(reason)}")
+            :ok
+        end
+    end
+  end
+
+  defp get_store do
+    case Application.get_env(:anubis, :session_store) do
+      nil ->
+        nil
+
+      config ->
+        adapter = Keyword.get(config, :adapter)
+
+        if adapter && Code.ensure_loaded?(adapter) do
+          adapter
+        end
+    end
   end
 end

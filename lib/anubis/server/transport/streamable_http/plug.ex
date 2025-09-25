@@ -83,7 +83,12 @@ if Code.ensure_loaded?(Plug) do
       timeout = Keyword.get(opts, :timeout, @default_timeout)
       call_timeout = Keyword.get(opts, :call_timeout, @default_timeout)
 
-      %{transport: transport, session_header: session_header, timeout: timeout, call_timeout: call_timeout}
+      %{
+        transport: transport,
+        session_header: session_header,
+        timeout: timeout,
+        call_timeout: call_timeout
+      }
     end
 
     @impl Plug

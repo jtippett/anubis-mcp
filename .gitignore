@@ -47,3 +47,5 @@ result
 # Claude
 /.claude/
 /rag/
+
+.DS_Store
