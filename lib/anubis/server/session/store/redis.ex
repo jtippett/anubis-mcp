@@ -98,14 +98,19 @@ defmodule Anubis.Server.Session.Store.Redis do
     children =
       for i <- 1..pool_size do
         child_id = :"anubis_#{conn_name}_#{i}"
+
         %{
           id: child_id,
-          start: {Redix, :start_link, [[
-            url: redis_url,
-            name: child_id,
-            sync_connect: false,
-            exit_on_disconnection: false
-          ]]}
+          start:
+            {Redix, :start_link,
+             [
+               redis_url,
+               [
+                 name: child_id,
+                 sync_connect: false,
+                 exit_on_disconnection: false
+               ]
+             ]}
         }
       end
 
