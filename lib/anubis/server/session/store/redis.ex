@@ -94,14 +94,23 @@ defmodule Anubis.Server.Session.Store.Redis do
     namespace = Keyword.get(opts, :namespace, @default_namespace)
     ttl = Keyword.get(opts, :ttl, @default_ttl)
 
-    # Start Redix connection pool
+    # Start Redix connection pool with anubis_ prefix to avoid conflicts
     children =
       for i <- 1..pool_size do
-        {Redix, url: redis_url, name: :"#{conn_name}_#{i}", sync_connect: false, exit_on_disconnection: false}
+        {Redix,
+         [
+           url: redis_url,
+           name: :"anubis_#{conn_name}_#{i}",
+           sync_connect: false,
+           exit_on_disconnection: false
+         ]}
       end
 
+    # Use anubis_ prefix for supervisor name
+    supervisor_name = :"anubis_#{conn_name}_supervisor"
+
     # Start connections under a supervisor
-    case Supervisor.start_link(children, strategy: :one_for_one, name: :"#{conn_name}_supervisor") do
+    case Supervisor.start_link(children, strategy: :one_for_one, name: supervisor_name) do
       {:ok, _pid} ->
         state = %State{
           conn_name: conn_name,
@@ -259,7 +268,7 @@ defmodule Anubis.Server.Session.Store.Redis do
     # Should match config
     pool_size = 10
     index = :rand.uniform(pool_size)
-    :"#{conn_name}_#{index}"
+    :"anubis_#{conn_name}_#{index}"
   end
 
   defp encode_and_save(conn_name, key, data, ttl) do
