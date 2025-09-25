@@ -97,13 +97,16 @@ defmodule Anubis.Server.Session.Store.Redis do
     # Start Redix connection pool with anubis_ prefix to avoid conflicts
     children =
       for i <- 1..pool_size do
-        {Redix,
-         [
-           url: redis_url,
-           name: :"anubis_#{conn_name}_#{i}",
-           sync_connect: false,
-           exit_on_disconnection: false
-         ]}
+        child_id = :"anubis_#{conn_name}_#{i}"
+        %{
+          id: child_id,
+          start: {Redix, :start_link, [[
+            url: redis_url,
+            name: child_id,
+            sync_connect: false,
+            exit_on_disconnection: false
+          ]]}
+        }
       end
 
     # Use anubis_ prefix for supervisor name
